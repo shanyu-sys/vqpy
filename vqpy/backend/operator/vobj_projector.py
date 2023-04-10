@@ -1,6 +1,6 @@
 from vqpy.backend.operator.base import Operator
 from vqpy.backend.frame import Frame
-from typing import Callable, Dict, Any
+from typing import Callable, Dict, Any, List
 import pandas as pd
 import numpy as np
 from vqpy.utils.images import crop_image
@@ -206,6 +206,135 @@ class VObjProjector(Operator):
                 self._update_hist_buffer(hist_deps=hist_data)
             frame = self._compute_property(non_hist_data, hist_data,
                                            frame=frame)
-        return frame
+            return frame
+        else:
+            raise StopIteration
 
-# TODO: ADD CrossVobjProjector
+from collections import defaultdict
+from copy import deepcopy
+class FrameProjector(Operator):
+
+    def __init__(self,
+                 prev,
+                 property_name,
+                 property_func,
+                 dependencies,
+                 ) -> None:
+        self.history_buffer = defaultdict(list)
+        self.property_name = property_name
+        self.property_func = property_func
+        self.dependencies = dependencies
+
+        super().__init__(prev)
+
+    def next(self):
+        if self.prev.has_next():
+            frame = self.prev.next()
+            input_data_0 = {}
+            input_data_1 = {}
+
+            enought_history = True
+            (index_0, class_0), deps0 = self.dependencies[0]
+            (index_1, class_1), deps1 = self.dependencies[1]
+            if class_0 is not None:
+                for vobj_id_0 in frame.filtered_vobjs[index_0][class_0]:
+                    vobj_0_current_value = deepcopy(frame.vobj_data[class_0][vobj_id_0])
+                    for dep, history_len in deps0.items():
+                        if history_len > 0:
+                            self.history_buffer[(class_0, vobj_0_current_value["track_id"], dep)].append(vobj_0_current_value[dep])
+                            original_history = self.history_buffer[(class_0, vobj_0_current_value["track_id"], dep)]
+                            if len(original_history) > history_len:
+                                self.history_buffer[(class_0, vobj_0_current_value["track_id"], dep)] = original_history[-history_len:]
+                            if len(original_history) < history_len:
+                                enought_history = False
+                            else:
+                                history = deepcopy(self.history_buffer[(class_0, vobj_0_current_value["track_id"], dep)])
+                                vobj_0_current_value[dep] = history
+
+                    input_data_0[vobj_id_0] = vobj_0_current_value
+            else:
+                input_data_0[0] = deepcopy(frame.properties)
+                for dep, history_len in deps0.items():
+                    if history_len > 0:
+                        self.history_buffer[("_frame", dep)].append(frame.properties[dep])
+                        original_history = self.history_buffer[("_frame", dep)]
+                        if len(original_history) > history_len:
+                            self.history_buffer[("_frame", dep)] = original_history[-history_len:]
+                        if len(original_history) < history_len:
+                            enought_history = False
+                        else:
+                            history = deepcopy(self.history_buffer[("_frame", dep)])
+                            input_data_0[0][dep] = history
+
+            if class_1 is not None:
+                for vobj_id_1 in frame.filtered_vobjs[index_1][class_1]:
+                    vobj_1_current_value = deepcopy(frame.vobj_data[class_1][vobj_id_1])
+
+                    for dep, history_len in deps1.items():
+                        if history_len > 0:
+                            self.history_buffer[(class_1, vobj_1_current_value["track_id"])].append(vobj_1_current_value[dep])
+                            original_history = self.history_buffer[(class_1, vobj_1_current_value["track_id"])]
+                            if len(original_history) > history_len:
+                                self.history_buffer[(class_1, vobj_1_current_value["track_id"])] = original_history[-history_len:]
+                            
+                            if len(original_history) < history_len:
+                                enought_history = False
+                            else:
+                                history = deepcopy(self.history_buffer[(class_1, vobj_1_current_value["track_id"])])
+                                vobj_1_current_value[dep] = history
+                    input_data_1[vobj_id_1] = vobj_1_current_value
+            else:
+                input_data_1[0] = deepcopy(frame.properties)
+                for dep, history_len in deps1.items():
+                    if history_len > 0:
+                        self.history_buffer[("_frame", dep)].append(frame.properties[dep])
+                        original_history = self.history_buffer[("_frame", dep)]
+                        if len(original_history) > history_len:
+                            self.history_buffer[("_frame", dep)] = original_history[-history_len:]
+                        if len(original_history) < history_len:
+                            enought_history = False
+                        else:
+                            history = deepcopy(self.history_buffer[("_frame", dep)])
+                            input_data_1[0][dep] = history            
+            if not enought_history:
+                frame.properties[self.property_name] = None
+            else:
+                values = []
+                if class_0 is not None:
+                    vobj0_ids = frame.filtered_vobjs[index_0][class_0]
+                else:
+                    vobj0_ids = [0]
+                
+                if class_1 is not None:
+                    vobj1_ids = frame.filtered_vobjs[index_1][class_1]
+                else:
+                    vobj1_ids = [0]
+
+                for vobj_id_0 in vobj0_ids:
+                    for vobj_id_1 in vobj1_ids:
+                        v = self.property_func(input_data_0[vobj_id_0], input_data_1[vobj_id_1])
+                        values.append(v)
+
+                frame.properties[self.property_name] = any(values)
+            return frame
+        else:
+            raise StopIteration
+                        
+
+                
+
+                    
+
+# class CrossVobjProjector(VObjProjector):
+#     def __init__(self,
+#                  prev: Operator,
+#                  property_name: str,
+#                  property_func: Callable[[List[Dict]], Any],
+#                  dependencies: List[Dict[str, int]],
+#                  input_filter_index: List[int],
+#                  input_class_name: List[str],
+#                  class_name: str,
+#                  filter_index: int = 0,
+#                  ):
+#     super
+    

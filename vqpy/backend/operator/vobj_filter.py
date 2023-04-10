@@ -87,8 +87,11 @@ class VObjPropertyFilter(VObjFilter):
         :param property_name: the name of the property on vobj.
         """
         def condition_func(vobj_data: Dict):
-            assert property_name in vobj_data, \
-                        f"property_name {self.property_name} is not computed \
-                            before filtering."
+            # assert property_name in vobj_data, \
+            #             f"property_name {property_name} is not computed \
+            #                 before filtering. data: {vobj_data}"
+            # todo handle property not in vobj_data, probably un tracked
+            if property_name not in vobj_data:
+                return False
             return property_condition_func(vobj_data[property_name])
         super().__init__(prev, condition_func, filter_index)

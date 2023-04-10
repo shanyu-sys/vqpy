@@ -70,12 +70,21 @@ To define a `VObj` class, users are required to inherit the `vqpy.VObjBase` clas
 For example,  if we are interested in the vehicle object in the video, and want to query the license plate. We can define a `Vehicle` class as below.
 
 ```python
-class Vehicle(vqpy.VObjBase):
+class Car(vqpy.vobj.Vehicle):
+    # color and license_plate are properties in built-in Vehicle VObj
 
-    @vqpy.property()
-    def license_plate(self):
-        # infer license plate with vqpy built-in openalpr model
-        return self.infer('license_plate', {'license_plate': 'openalpr'})
+    @stateful(input="bbox", history_len=2)
+    def direction(last_2_frame_bboxes):
+        last_bbox, current_bbox = last_2_frame_bboxes if current_bbox[0] - last_bbox[0] > 0:
+        return "north"
+        else: # logic for other directions is omitted
+        return "other directions"
+
+    @stateless(input="image") 
+    def model(car_image):
+        my_NN = MyCarRecognizationNN()
+        return my_NN.inference(car_image)
+
 ```
 
 And if we want to query the owner of a baggage object where the baggage's owner is a person object who is closest to the baggage. We can define our interested `VObj`s as below. Note that the `owner` property of `Baggage` `VObj` should be decorcated with `@vqpy.cross_vobj_property`.
