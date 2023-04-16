@@ -18,7 +18,8 @@ class Frame:
         # eg. vobj_data: {"person": [{"tlbr": [], "score": 0.9},],
         self.vobj_data = defaultdict(list)
 
-        self.properties = {}
+        self.properties = {"image": self.image,
+                           "id": self.id,}
 
         # filtered_vobjs is a dictionary of filtered vobjs,
         # where the key is the filtered indexes

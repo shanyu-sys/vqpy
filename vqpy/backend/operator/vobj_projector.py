@@ -314,12 +314,94 @@ class FrameProjector(Operator):
                     for vobj_id_1 in vobj1_ids:
                         v = self.property_func(input_data_0[vobj_id_0], input_data_1[vobj_id_1])
                         values.append(v)
-
-                frame.properties[self.property_name] = any(values)
+                if len(values) == 1:
+                    frame.properties[self.property_name] = values[0]
+                else:
+                    frame.properties[self.property_name] = any(values)
+                
             return frame
         else:
             raise StopIteration
                         
+from collections import deque
+class FrameProjectorBatch(Operator):
+
+    def __init__(self,
+                 prev,
+                 property_name,
+                 property_batch_func,
+                 dependencies,
+                 batch_size,
+                ) -> None:
+        
+        self.history_length = max([max(v.values()) for k, v in dependencies])
+    
+        self.property_name = property_name
+        self.property_func = property_batch_func
+        self.dependencies = dependencies
+        self.batch_size = batch_size
+        self.current_batch_idx = - self.history_length
+        self.batch_buffer = []
+        self.result_buffer = []
+        self.history_buffer = deque()
+
+        super().__init__(prev)
+
+    def has_next(self) -> bool:
+
+        if self.history_length > 0:
+            if len(self.history_buffer) < self.history_length:
+                while self.prev.has_next() and len(self.history_buffer) < self.history_length:
+                    frame = self.prev.next()
+                    frame.properties[self.property_name] = None
+                    self.history_buffer.append(frame)
+
+            if self.current_batch_idx + self.history_length < len(self.history_buffer):
+                # still in the history buffer range
+                return True
+        
+        # now we have enough history
+
+        # we have items left in result buffer
+        if self.current_batch_idx < len(self.result_buffer):
+            return True
+        
+        # the result_buffer has been exhausted, we accumulate anther batch
+
+        # first we move the last history_len items in result_buffer to history_buff
+        if self.history_length > 0:
+            self.history_buffer.extend(self.result_buffer[-self.history_length:])
+            while len(self.history_buffer) > self.history_length:
+                self.history_buffer.popleft()
+
+        self.result_buffer.clear()
+        self.batch_buffer.clear()
+        self.current_batch_idx = 0
+        batch_count = 0
+        while self.prev.has_next() and batch_count < self.batch_size:
+            frame = self.prev.next()
+            self.batch_buffer.append(frame)
+            batch_count += 1
+        if batch_count > 0:
+            result = self.property_func(list(self.history_buffer) + self.batch_buffer)
+            for i, r in enumerate(result):
+                self.batch_buffer[i].properties[self.property_name] = result[i]
+            self.result_buffer.extend(self.batch_buffer)
+            return True
+        else:
+            return False
+
+    def next(self):
+        if self.has_next():
+            if self.current_batch_idx < 0:
+                result = self.history_buffer[self.current_batch_idx + self.history_length]
+            else:
+                result = self.result_buffer[self.current_batch_idx]
+            self.current_batch_idx += 1
+            return result
+        else:
+            raise StopIteration
+            
 
                 
 
