@@ -361,16 +361,16 @@ def test_dunk(video_reader):
     # precision = 0.75, using hit event
     # recall = 0.5, using hit event
     # f1 = 0.6, using hit event
-    # using time 45.88889806802035, including data ingestion time 13.3s
+    # using time 45.88889806802035, including data ingestion time 13.3s, processing time: 32.7s
 
 
     ### viva output event, action threshold == 0.5
     # 129-131, 148-179, hit event: 1  
-    # 316-388 hit event: 1
-    # 473-520 hit event: 1
-    # 537-552 
-    # 573-620
-    # using time 105.4555675983429, including data ingestion time 22.107012765976833
+    # 216-279 
+    # 332-347 hit event: 1
+    # 465-480 485-532 hit event: 1
+    # 585-676
+    # experiment using time 123.44768238067627, processing time: 39.779783054982545
     # precision = 0.6
     # recall = 0.5
     # f1 = 0.55
