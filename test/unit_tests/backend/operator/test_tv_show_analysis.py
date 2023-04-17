@@ -72,7 +72,7 @@ import time
 
 global_face_detection_time = 0.0
 # maybe make this into a object detector
-def detect_face(frames, resize=False):
+def detect_face(frames, resize=True):
     start = time.perf_counter()
     import torch
     images = [frame.image for frame in frames]
@@ -172,7 +172,7 @@ def test_emotion():
     # os.mkdir(f"/home/ubuntu/vqpy/dunk/")
     outputs = []
     with torch.inference_mode():
-        while node.has_next() and count < 30:
+        while node.has_next() and count < 1800:
             frame = node.next()
             count += 1
             if count % 1 == 0:
@@ -196,6 +196,7 @@ def test_emotion():
     df.to_csv("tv_show_analysis_2.csv", index=False)
 
 
+# total 1800 frames
 # measure the average sentiment of the video
 # detect face and emotion, positive emotion assign 1, neutral assign 0, other -1
 # average each emotion detections over each second, determine positive of negative
