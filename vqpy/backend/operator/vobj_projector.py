@@ -382,6 +382,9 @@ class FrameProjectorBatch(Operator):
             frame = self.prev.next()
             self.batch_buffer.append(frame)
             batch_count += 1
+        
+        # if self.property_name == "emotion":
+        #     print("inside")
         if batch_count > 0:
             result = self.property_func(list(self.history_buffer) + self.batch_buffer)
             for i, r in enumerate(result):

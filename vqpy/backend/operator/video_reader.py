@@ -38,16 +38,6 @@ class VideoReader(Operator):
         if self.has_next():
             self.frame_id += 1
             ret_val, frame_image = self._cap.read()
-            # print(ret_val)
-            # print(frame_image)
-            while not ret_val:
-                ret_val, frame_image = self._cap.read()
-                # raise IOError
-            # cv2.imshow("frame", frame_image)
-            ch = cv2.waitKey(1)
-            if ch == 27 or ch == ord("q") or ch == ord('Q'):
-                raise KeyboardInterrupt
-            # print(self.frame_id)
             frame = Frame(video_metadata=self.metadata,
                           id=self.frame_id,
                           image=frame_image)
@@ -60,15 +50,17 @@ class VideoReader(Operator):
 
 import time
 class VideoReaderBatchLoad(Operator):
-    def __init__(self, video_path: str, fps=1.0, size=(360, 240)):
+    def __init__(self, video_path: str, fps=None, size=None, limit=None):
         self._cap = cv2.VideoCapture(video_path)
         self.frame_id = 0
         self.metadata = self.get_metadata()
-        self.fps=fps
-        self.original_fps = self.metadata["fps"]
-        self.n_skip = self.original_fps // self.fps
         self.size = size
         self.video = None
+        self.fps=fps if fps is not None else self.metadata["fps"]
+        self.original_fps = self.metadata["fps"]
+        print(self.original_fps)
+        self.n_skip = int(self.original_fps // self.fps)
+        self.limit = limit
 
     
     def _load_video_to_numpy(self):
@@ -82,9 +74,12 @@ class VideoReaderBatchLoad(Operator):
             # print(ret_val)
             # print(frame_image)
             if frame_id % self.n_skip == 0:
-                frame_image = cv2.resize(frame_image, self.size)
+                if self.size is not None:
+                    frame_image = cv2.resize(frame_image, self.size)
                 result.append(frame_image)
             frame_id += 1
+            if self.limit is not None and frame_id > self.limit:
+                break
 
         # self.video = np.stack(result, axis=0)
         self.video = result
