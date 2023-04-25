@@ -8,31 +8,55 @@ from vqpy.backend.operator.frame_filter import FrameRangeFilter, FrameFilter
 
 import pytest
 import os
-import fake_yolox  # noqa: F401
+# import fake_yolox  # noqa: F401
 current_dir = os.path.dirname(os.path.abspath(__file__))
 resource_dir = os.path.join(current_dir, "..", "..", "resources/")
+import cv2
+import numpy as np
 
 
 @pytest.fixture
 def video_reader():
-    video_path = os.path.join(resource_dir,
-                              "right_turn_trim.mp4")
+    # video_path = os.path.join(resource_dir,
+    #                           "right_turn_trim.mp4")
     # video_path = "/disk2/home/ubuntu/videos/auburn_raw000.mp4"
+    video_path = "/data/Auburn/auburn_fri003.mp4"
     assert os.path.isfile(video_path)
     video_reader = VideoReader(video_path)
     return video_reader
 
 
 @pytest.fixture
-def object_detector(video_reader):
-
-    node = FrameRangeFilter(
+def frame_filter(video_reader):
+    node = FrameFilter(
         prev=video_reader,
-        frame_id_range=(0 * 30 , 15 * 30),
+        condition_func=lambda frame: similarity(frame.image) < 200,
     )
 
+    # node = FrameRangeFilter(
+    #     prev=video_reader,
+    #     frame_id_range=(0 * 30 , 15 * 30),
+    # )
+
+    # object_detector = ObjectDetector(
+    #     prev=video_reader,
+    #     class_names={"person", "car", "truck"},
+    #     detector_name="yolox",
+    #     # detector_kwargs={"device": "cpu"}
+    # )
+    return node
+
+
+@pytest.fixture
+def object_detector(frame_filter):
+
+    # node = FrameRangeFilter(
+    #     prev=video_reader,
+    #     frame_id_range=(0 * 30 , 15 * 30),
+    # )
+
     object_detector = ObjectDetector(
-        prev=node,
+        prev=frame_filter,
         class_names={"person", "car", "truck"},
         detector_name="yolox",
         # detector_kwargs={"device": "cpu"}
@@ -108,6 +132,37 @@ right_turn_corner_image = [
 side_walk_video = [(int(x / 1513 * 1920), int(y / 854 * 1080)) for x, y in side_walk_image]
 right_turn_corner_video = [(int(x / 1513 * 1920), int(y / 854 * 1080)) for x, y in right_turn_corner_image]
 
+ref_image = cv2.imread("/data/Auburn/003_s1.jpg")
+
+def mse(imageA, imageB):
+    err = np.sum((imageA.astype("float") - imageB.astype("float")) ** 2)
+    err /= float(imageA.shape[0] * imageA.shape[1])
+    return err
+
+def mse2(imageA, imageB):
+    mse = ((imageA - imageB) ** 2).mean(axis=None)
+    return mse
+
+
+def extract_polygon_region(image, vertices):
+    mask = np.zeros_like(image)
+    cv2.fillPoly(mask, [vertices], (255, 255, 255))
+    return cv2.bitwise_and(image, mask)
+
+cropped_ref_image = extract_polygon_region(ref_image, np.array(right_turn_corner_video, np.int32))
+
+def similarity(image):
+    # import time
+    # st = time.time()
+    cropped_image = extract_polygon_region(image, np.array(right_turn_corner_video, np.int32))
+    # t2 = time.time()
+    # print("extract_polygon_region: ", t2 - st)
+    similarity = mse(cropped_image, cropped_ref_image)
+    # print("mse: ", time.time() - t2)
+
+    # print("Similarity: ", similarity)
+    return similarity
+
 
 def in_polygon(tlbr, polygon):
     x1, y1, x4, y4 = tlbr
@@ -176,6 +231,7 @@ def car_crossing_after_car_waiting_person_in_side_walk(scene_value, car_value):
     
 
 def test_stateful_projector(tracker):
+
     # test projector with history
     node = VObjFilter(
         prev=tracker,
@@ -280,11 +336,16 @@ def test_stateful_projector(tracker):
     # node = SceneFrameFilter(
     #     prev=node,
     #     condition_func="car_crossing_after_car_waiting_person_in_side_walk")
-
-    while node.has_next():
-        frame = node.next()
-        # print(frame)
-        print(frame.id/30)
+    import time
+    start = time.time()
+    try:
+        while node.has_next():
+            frame = node.next()
+            # print(frame)
+            print(frame.id/30)
+    except:
+        print("time: ", time.time() - start)
+            
         # if frame.filtered_vobjs[1]["car"]:
         #     # print(frame.vobj_data["person"][frame.filtered_vobjs[0]["person"][0]])
         #     for car_idx in frame.filtered_vobjs[1]["car"]:
@@ -320,3 +381,4 @@ def test_stateful_projector(tracker):
     # assert checked
 
 #     # test delete history
+    print("Total runtime:", time.time() - start)
